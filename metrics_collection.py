@@ -1,3 +1,4 @@
+import os
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -144,23 +145,26 @@ def analyze_performance(metrics_dict, method_name):
     axs[2, 1].set_ylabel('Seconds')
     
     if 'epsilon_history' in metrics_dict and metrics_dict['epsilon_history']:
-        fig_extra, axs_extra = plt.subplots(1, 2, figsize=(15, 5))
+        fig_extra = plt.figure(figsize=(15, 5))
         fig_extra.suptitle(f'Additional Metrics for {method_name}', fontsize=16)
         
-        axs_extra[0].plot(metrics_dict['epsilon_history'])
-        axs_extra[0].set_title('Exploration Rate (Epsilon)')
-        axs_extra[0].set_xlabel('Episode')
-        axs_extra[0].set_ylabel('Epsilon')
+        ax1 = fig_extra.add_subplot(1, 2, 1)
+        ax1.plot(metrics_dict['epsilon_history'])
+        ax1.set_title('Exploration Rate (Epsilon)')
+        ax1.set_xlabel('Episode')
+        ax1.set_ylabel('Epsilon')
         
         if 'q_value_evolution' in metrics_dict and metrics_dict['q_value_evolution']:
-            axs_extra[1].plot(metrics_dict['q_value_evolution'])
-            axs_extra[1].set_title('Average Q-Value Evolution')
-            axs_extra[1].set_xlabel('Episode')
-            axs_extra[1].set_ylabel('Average Q-Value')
+            ax2 = fig_extra.add_subplot(1, 2, 2)
+            ax2.plot(metrics_dict['q_value_evolution'])
+            ax2.set_title('Average Q-Value Evolution')
+            ax2.set_xlabel('Episode')
+            ax2.set_ylabel('Average Q-Value')
+        
+        plt.tight_layout()
+        plt.close(fig_extra)
     
     plt.tight_layout()
-    plt.close(fig_extra)
-
     return fig
 
 def main_with_metrics(method="q_learning", use_dataset=False, csv_file=None, 
@@ -199,6 +203,20 @@ def main_with_metrics(method="q_learning", use_dataset=False, csv_file=None,
         metrics = run_episodes_with_metrics(env, agent, num_episodes=mcts_episodes, method="mcts", episode_step_limit=episode_step_limit)
     
     fig = analyze_performance(metrics, method)
+
+    if agent is not None:
+        print(f"\nEvaluating {method} against baseline agents...")
+        baseline_results = None
+        try:
+            from tournament import evaluate_against_baselines
+            baseline_results = evaluate_against_baselines(agent, method, num_games=50)
+            metrics["baseline_results"] = baseline_results
+            
+            for baseline, stats in baseline_results.items():
+                print(f"{method.upper()} vs {baseline}: Win: {stats['win_rate']*100:.1f}%, "
+                    f"Draw: {stats['draw_rate']*100:.1f}%, Loss: {stats['loss_rate']*100:.1f}%")
+        except Exception as e:
+            print(f"Skipping baseline evaluation due to error: {e}")
     
     return metrics, agent, env, fig
 
@@ -258,6 +276,61 @@ def compare_methods(metrics_dict):
     
     plt.tight_layout()
 
+    return fig
+
+def visualize_baseline_results(metrics_dict, output_dir=None):
+    """
+    Create visualizations of performance against baseline agents
+    
+    Args:
+        metrics_dict: Dictionary with method names as keys and metrics as values
+        output_dir: Directory to save visualizations
+    """
+    methods = []
+    baseline_names = []
+    all_results = {}
+    
+    for method, metrics in metrics_dict.items():
+        if "baseline_results" in metrics:
+            methods.append(method)
+            results = metrics["baseline_results"]
+            for baseline in results:
+                if baseline not in baseline_names:
+                    baseline_names.append(baseline)
+                    all_results[baseline] = {}
+                all_results[baseline][method] = results[baseline]["win_rate"] * 100
+    
+    if not methods or not baseline_names:
+        print("No baseline results found to visualize")
+        return None
+    
+    fig, axs = plt.subplots(len(baseline_names), 1, figsize=(10, 4 * len(baseline_names)))
+    if len(baseline_names) == 1:
+        axs = [axs]
+    
+    for i, baseline in enumerate(baseline_names):
+        ax = axs[i]
+        win_rates = [all_results[baseline].get(method, 0) for method in methods]
+        
+        bars = ax.bar(methods, win_rates)
+        ax.set_title(f"Win Rate Against {baseline} Agent")
+        ax.set_ylabel("Win Rate (%)")
+        ax.set_ylim(0, 100)
+        
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height:.1f}%',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+    
+    plt.tight_layout()
+    
+    if output_dir and isinstance(output_dir, str):
+        os.makedirs(output_dir, exist_ok=True)
+        fig.savefig(os.path.join(output_dir, 'baseline_comparison.png'), dpi=300, bbox_inches='tight')
+    
     return fig
 
 def hyperparameter_experiment(method, param_name, param_values, num_episodes=200, episode_step_limit=50):

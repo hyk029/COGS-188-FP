@@ -14,58 +14,55 @@ def run_all_hyperparameter_tests(base_output_dir="hyperparameter_results"):
     os.makedirs(base_output_dir, exist_ok=True)
     
     experiments = [
-        # Q-Learning experiments
         {
             'method': 'q_learning',
             'param_name': 'alpha',
             'param_values': [0.01, 0.05, 0.1, 0.2, 0.5],
-            'episodes': 300
+            'episodes': 500
         },
         {
             'method': 'q_learning',
             'param_name': 'gamma',
             'param_values': [0.8, 0.9, 0.95, 0.99],
-            'episodes': 300
+            'episodes': 500
         },
         {
             'method': 'q_learning',
             'param_name': 'epsilon_decay',
             'param_values': [0.99, 0.995, 0.998, 0.999],
-            'episodes': 300
+            'episodes': 500
         },
         
-        # SARSA experiments
         {
             'method': 'sarsa',
             'param_name': 'alpha',
             'param_values': [0.01, 0.05, 0.1, 0.2, 0.5],
-            'episodes': 300
+            'episodes': 500
         },
         {
             'method': 'sarsa',
             'param_name': 'gamma',
             'param_values': [0.8, 0.9, 0.95, 0.99],
-            'episodes': 300
+            'episodes': 500
         },
         {
             'method': 'sarsa',
             'param_name': 'epsilon_decay',
             'param_values': [0.99, 0.995, 0.998, 0.999],
-            'episodes': 300
+            'episodes': 500
         },
         
-        # MCTS experiments
         {
             'method': 'mcts',
             'param_name': 'n_simulations',
             'param_values': [50, 100, 200, 500],
-            'episodes': 10
+            'episodes': 50
         },
         {
             'method': 'mcts',
             'param_name': 'c_puct',
             'param_values': [0.5, 1.0, 1.4, 2.0, 3.0],
-            'episodes': 10
+            'episodes': 50
         }
     ]
     
@@ -154,7 +151,6 @@ def run_final_comparison_with_best_params(best_params, num_episodes=500, output_
     os.makedirs(output_dir, exist_ok=True)
     all_metrics = {}
     
-    # Run Q-Learning with best parameters
     if 'q_learning' in best_params and best_params['q_learning']:
         print("\nRunning Q-Learning with best parameters")
         q_params = best_params['q_learning']
@@ -173,7 +169,6 @@ def run_final_comparison_with_best_params(best_params, num_episodes=500, output_
         fig.savefig(os.path.join(output_dir, 'q_learning_performance.png'), dpi=300, bbox_inches='tight')
         plt.close(fig)
     
-    # Run SARSA with best parameters
     if 'sarsa' in best_params and best_params['sarsa']:
         print("\nRunning SARSA with best parameters")
         s_params = best_params['sarsa']
@@ -192,7 +187,6 @@ def run_final_comparison_with_best_params(best_params, num_episodes=500, output_
         fig.savefig(os.path.join(output_dir, 'sarsa_performance.png'), dpi=300, bbox_inches='tight')
         plt.close(fig)
     
-    # Run MCTS with best parameters
     if 'mcts' in best_params and best_params['mcts']:
         print("\nRunning MCTS with best parameters")
         m_params = best_params['mcts']
@@ -217,10 +211,119 @@ def run_final_comparison_with_best_params(best_params, num_episodes=500, output_
         
         with open(os.path.join(output_dir, 'all_metrics.pkl'), 'wb') as f:
             pickle.dump(all_metrics, f)
-    
+
+        for method_name, metrics in all_metrics.items():
+            if "baseline_results" in metrics:
+                print(f"\nBaseline results for {method_name}:")
+                for baseline, results in metrics["baseline_results"].items():
+                    print(f"- vs {baseline}: Win: {results['win_rate']*100:.1f}%, "
+                        f"Draw: {results['draw_rate']*100:.1f}%, Loss: {results['loss_rate']*100:.1f}%")
+
+        from metrics_collection import visualize_baseline_results
+        baseline_fig = visualize_baseline_results(all_metrics, output_dir=output_dir)
+        if baseline_fig:
+            plt.close(baseline_fig)
+
     return all_metrics
+
+def evaluate_best_models_against_baselines(best_params, output_dir="baseline_evaluation"):
+    """
+    Evaluate the models with best hyperparameters against baseline heuristic agents
+    
+    Args:
+        best_params: Dictionary of best parameter values from analyze_best_hyperparameters
+        output_dir: Directory to save results
+    """
+    from tournament import evaluate_against_baselines, plot_baseline_results
+    from __init__ import ChessEnv, QLearningAgent, SARSAAgent, MCTSAgent, run_episodes
+    
+    os.makedirs(output_dir, exist_ok=True)
+    all_results = {}
+    
+    if 'q_learning' in best_params and best_params['q_learning']:
+        print("\nEvaluating Q-Learning with best parameters against baselines")
+        q_params = best_params['q_learning']
+        alpha = q_params.get('alpha', 0.1)
+        gamma = q_params.get('gamma', 0.99)
+        epsilon_decay = q_params.get('epsilon_decay', 0.995)
+        
+        env = ChessEnv(max_steps=50)
+        agent = QLearningAgent(alpha=alpha, gamma=gamma, epsilon=0.01, epsilon_min=0.01, epsilon_decay=epsilon_decay)
+        
+        print("Training Q-Learning agent before evaluation...")
+        run_episodes(env, agent, num_episodes=300, method="q_learning")
+        
+        results = evaluate_against_baselines(agent, 'q_learning', num_games=50)
+        all_results['Q-Learning'] = results
+        
+        for baseline, stats in results.items():
+            print(f"Q-Learning vs {baseline}: Win: {stats['win_rate']*100:.1f}%, Draw: {stats['draw_rate']*100:.1f}%, Loss: {stats['loss_rate']*100:.1f}%")
+    
+    if 'sarsa' in best_params and best_params['sarsa']:
+        print("\nEvaluating SARSA with best parameters against baselines")
+        s_params = best_params['sarsa']
+        alpha = s_params.get('alpha', 0.1)
+        gamma = s_params.get('gamma', 0.99)
+        epsilon_decay = s_params.get('epsilon_decay', 0.995)
+        
+        env = ChessEnv(max_steps=50)
+        agent = SARSAAgent(alpha=alpha, gamma=gamma, epsilon=0.01, epsilon_min=0.01, epsilon_decay=epsilon_decay)
+        
+        print("Training SARSA agent before evaluation...")
+        run_episodes(env, agent, num_episodes=300, method="sarsa")
+        
+        results = evaluate_against_baselines(agent, 'sarsa', num_games=50)
+        all_results['SARSA'] = results
+        
+        for baseline, stats in results.items():
+            print(f"SARSA vs {baseline}: Win: {stats['win_rate']*100:.1f}%, Draw: {stats['draw_rate']*100:.1f}%, Loss: {stats['loss_rate']*100:.1f}%")
+    
+    if 'mcts' in best_params and best_params['mcts']:
+        print("\nEvaluating MCTS with best parameters against baselines")
+        m_params = best_params['mcts']
+        n_simulations = int(m_params.get('n_simulations', 100))
+        c_puct = m_params.get('c_puct', 1.4)
+        
+        env = ChessEnv(max_steps=50)
+        agent = MCTSAgent(n_simulations=n_simulations, c_puct=c_puct)
+        
+        results = evaluate_against_baselines(agent, 'mcts', num_games=50)
+        all_results['MCTS'] = results
+        
+        for baseline, stats in results.items():
+            print(f"MCTS vs {baseline}: Win: {stats['win_rate']*100:.1f}%, Draw: {stats['draw_rate']*100:.1f}%, Loss: {stats['loss_rate']*100:.1f}%")
+    
+    if len(all_results) > 1:
+        fig, axs = plt.subplots(1, len(all_results), figsize=(15, 5), sharey=True)
+        if len(all_results) == 1:
+            axs = [axs]
+            
+        for i, (method, results) in enumerate(all_results.items()):
+            ax = axs[i] if len(all_results) > 1 else axs
+            
+            baselines = list(results.keys())
+            win_rates = [results[baseline]["win_rate"] * 100 for baseline in baselines]
+            
+            ax.bar(baselines, win_rates)
+            ax.set_title(f"{method}")
+            ax.set_ylabel("Win Rate (%)" if i == 0 else "")
+            ax.set_ylim(0, 100)
+            for tick in ax.get_xticklabels():
+                tick.set_rotation(45)
+            
+        plt.suptitle("Win Rates Against Baseline Agents")
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, "all_methods_baseline_comparison.png"), dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        with open(os.path.join(output_dir, 'baseline_results.pkl'), 'wb') as f:
+            pickle.dump(all_results, f)
+    
+    return all_results
 
 if __name__ == "__main__":
     run_all_hyperparameter_tests()
     best_params = analyze_best_hyperparameters()
     run_final_comparison_with_best_params(best_params)
+    evaluate_best_models_against_baselines(best_params, output_dir="baseline_evaluation")
+

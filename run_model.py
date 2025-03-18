@@ -75,6 +75,13 @@ def run_all_methods(num_episodes=300, output_base_dir="model_results"):
         pickle.dump(all_metrics, f)
     
     print(f"\nComparison results saved in '{comparison_dir}'")
+
+    from metrics_collection import visualize_baseline_results
+    baseline_fig = visualize_baseline_results(all_metrics, output_dir=comparison_dir)
+    if baseline_fig:
+        plt.close(baseline_fig)
+
+    print(f"\nBaseline comparison results saved in '{comparison_dir}'")
     
     return all_metrics, comp_fig
 

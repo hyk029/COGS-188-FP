@@ -1,4 +1,3 @@
-#Packages
 import gym
 import numpy as np
 import random
@@ -33,7 +32,6 @@ def is_material_balanced(board):
             balance += sign * piece_values.get(piece.piece_type, 0)
     return abs(balance) <= 1  
 
-#Chess Environment (Gym)
 class ChessEnv(gym.Env):
     def __init__(self, max_steps=100):
         super().__init__()
@@ -133,7 +131,6 @@ class FENDatasetChessEnv(gym.Env):
         to_sq   = action_idx % 64
         return chess.Move(from_sq, to_sq)
 
-#Q-Learning
 class QLearningAgent:
     def __init__(self, alpha=0.1, gamma=0.99, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995):
         self.alpha = alpha
@@ -198,7 +195,6 @@ class QLearningAgent:
     def _encode_action(self, move):
         return move.from_square * 64 + move.to_square
 
-#Implementing SARSA
 class SARSAAgent:
     def __init__(self, alpha=0.1, gamma=0.99, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995):
         self.alpha = alpha
@@ -257,7 +253,6 @@ class SARSAAgent:
     def _encode_action(self, move):
         return move.from_square * 64 + move.to_square
 
-#Implementing MCTS 
 class MCTSAgent:
     def __init__(self, n_simulations=100, c_puct=1.4):
         self.n_simulations = n_simulations
@@ -368,7 +363,6 @@ class MCTSAgent:
     def _encode_action(self, move):
         return move.from_square * 64 + move.to_square
 
-# Training
 def run_episodes(env, agent, num_episodes=1000, method="q_learning"):
     rewards_history = []
     for ep in range(num_episodes):
