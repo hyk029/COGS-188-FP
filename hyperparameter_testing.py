@@ -4,14 +4,39 @@ import numpy as np
 import matplotlib.pyplot as plt
 from metrics_collection import hyperparameter_experiment, plot_hyperparameter_results
 
-def run_all_hyperparameter_tests(base_output_dir="hyperparameter_results"):
+def run_all_hyperparameter_tests(base_output_dir="hyperparameter_results", 
+                                use_dataset=False, dataset_path=None, balanced_only=True):
     """
     Run a comprehensive set of hyperparameter tests for all methods
     
     Args:
         base_output_dir: Directory to save results
+        use_dataset: Whether to use a FEN dataset for training
+        dataset_path: Path to CSV file containing FEN positions
+        balanced_only: Only use positions with balanced material if using dataset
     """
     os.makedirs(base_output_dir, exist_ok=True)
+    
+    fen_dataset = None
+    if use_dataset and dataset_path:
+        try:
+            from __init__ import load_fen_positions
+            print(f"Loading dataset from {dataset_path}...")
+            fen_dataset = load_fen_positions(dataset_path, balanced_only=balanced_only)
+            print(f"Loaded {len(fen_dataset)} FENs from dataset.")
+            if not fen_dataset:
+                print("No valid positions loaded, falling back to standard chess positions")
+                use_dataset = False
+        except Exception as e:
+            print(f"Error loading dataset: {e}")
+            print("Falling back to standard chess positions")
+            use_dataset = False
+    
+    if use_dataset:
+        with open(os.path.join(base_output_dir, 'dataset_info.txt'), 'w') as f:
+            f.write(f"Dataset: {dataset_path}\n")
+            f.write(f"Number of positions: {len(fen_dataset) if fen_dataset else 0}\n")
+            f.write(f"Balanced only: {balanced_only}\n")
     
     experiments = [
         {
@@ -79,7 +104,10 @@ def run_all_hyperparameter_tests(base_output_dir="hyperparameter_results"):
             param_name=exp['param_name'],
             param_values=exp['param_values'],
             num_episodes=exp['episodes'],
-            episode_step_limit=50
+            episode_step_limit=50,
+            use_dataset=use_dataset,
+            dataset_path=dataset_path,
+            balanced_only=balanced_only
         )
         
         with open(os.path.join(exp_dir, 'results.pkl'), 'wb') as f:
@@ -103,6 +131,94 @@ def run_all_hyperparameter_tests(base_output_dir="hyperparameter_results"):
                 plt.close()
         
         print(f"Completed experiment for {exp['method']} - {exp['param_name']}")
+
+def hyperparameter_experiment(method, param_name, param_values, num_episodes=200, 
+                            episode_step_limit=50, use_dataset=False, 
+                            dataset_path=None, balanced_only=True):
+    """
+    Run experiments with different hyperparameter values
+    
+    Args:
+        method: Algorithm to use ('q_learning', 'sarsa', or 'mcts')
+        param_name: Name of the parameter to vary
+        param_values: List of values to test
+        num_episodes: Number of episodes to run for each value
+        episode_step_limit: Maximum steps per episode
+        use_dataset: Whether to use a FEN dataset
+        dataset_path: Path to CSV file containing FEN positions
+        balanced_only: Only use positions with balanced material if using dataset
+    """
+    results = {}
+    
+    from __init__ import ChessEnv, FENDatasetChessEnv, load_fen_positions
+    
+    env = None
+    if use_dataset and dataset_path:
+        try:
+            fen_dataset = load_fen_positions(dataset_path, balanced_only=balanced_only)
+            if fen_dataset:
+                env = FENDatasetChessEnv(fen_dataset, max_steps=episode_step_limit)
+                print(f"Using dataset environment with {len(fen_dataset)} positions")
+        except Exception as e:
+            print(f"Error creating dataset environment: {e}")
+    
+    if env is None:
+        env = ChessEnv(max_steps=episode_step_limit)
+        print("Using standard chess environment")
+    
+    for value in param_values:
+        print(f"\nRunning {method} with {param_name}={value}")
+        
+        if method == "q_learning":
+            from __init__ import QLearningAgent
+            if param_name == "alpha":
+                agent = QLearningAgent(alpha=value, gamma=0.99, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995)
+            elif param_name == "gamma":
+                agent = QLearningAgent(alpha=0.1, gamma=value, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995)
+            elif param_name == "epsilon_decay":
+                agent = QLearningAgent(alpha=0.1, gamma=0.99, epsilon=1.0, epsilon_min=0.01, epsilon_decay=value)
+            else:
+                print(f"Unknown parameter: {param_name}")
+                return None
+                
+            from metrics_collection import run_episodes_with_metrics
+            metrics = run_episodes_with_metrics(env, agent, num_episodes=num_episodes, method="q_learning", episode_step_limit=episode_step_limit)
+        
+        elif method == "sarsa":
+            from __init__ import SARSAAgent
+            if param_name == "alpha":
+                agent = SARSAAgent(alpha=value, gamma=0.99, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995)
+            elif param_name == "gamma":
+                agent = SARSAAgent(alpha=0.1, gamma=value, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995)
+            elif param_name == "epsilon_decay":
+                agent = SARSAAgent(alpha=0.1, gamma=0.99, epsilon=1.0, epsilon_min=0.01, epsilon_decay=value)
+            else:
+                print(f"Unknown parameter: {param_name}")
+                return None
+                
+            from metrics_collection import run_episodes_with_metrics
+            metrics = run_episodes_with_metrics(env, agent, num_episodes=num_episodes, method="sarsa", episode_step_limit=episode_step_limit)
+        
+        elif method == "mcts":
+            from __init__ import MCTSAgent
+            mcts_episodes = min(num_episodes // 10, 20)
+            
+            if param_name == "n_simulations":
+                sim_count = min(int(value), 200)
+                agent = MCTSAgent(n_simulations=sim_count, c_puct=1.4, max_depth=15, timeout=2.0)
+                print(f"Using {sim_count} simulations (capped at 200)")
+            elif param_name == "c_puct":
+                agent = MCTSAgent(n_simulations=40, c_puct=value, max_depth=15, timeout=2.0)
+            else:
+                print(f"Unknown parameter: {param_name}")
+                return None
+                
+            from metrics_collection import run_episodes_with_metrics
+            metrics = run_episodes_with_metrics(env, agent, num_episodes=mcts_episodes, method="mcts", episode_step_limit=episode_step_limit)
+        
+        results[value] = metrics
+    
+    return results
 
 def analyze_best_hyperparameters(base_results_dir="hyperparameter_results"):
     """

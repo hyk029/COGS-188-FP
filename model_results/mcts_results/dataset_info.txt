@@ -1,0 +1,3 @@
+Dataset: chess_positions.csv
+Number of positions: 76
+Balanced only: False

@@ -4,15 +4,38 @@ import numpy as np
 import matplotlib.pyplot as plt
 from metrics_collection import main_with_metrics, compare_methods, visualize_baseline_results
 
-def run_all_methods(num_episodes=300, output_base_dir="model_results"):
+def run_all_methods(num_episodes=300, output_base_dir="model_results", 
+                    use_dataset=False, dataset_path=None, balanced_only=True):
     """
     Run all three reinforcement learning methods and save results in separate folders
-    Streamlined version with better MCTS handling
+    Enhanced version with dataset support
+    
+    Args:
+        num_episodes: Number of episodes to run for each method
+        output_base_dir: Directory to save results
+        use_dataset: Whether to use a FEN dataset instead of starting positions
+        dataset_path: Path to CSV file containing FEN positions
+        balanced_only: Only use positions with balanced material if using dataset
     """
     os.makedirs(output_base_dir, exist_ok=True)
     
     methods = ["q_learning", "sarsa", "mcts"]
     all_metrics = {}
+    
+    fen_dataset = None
+    if use_dataset and dataset_path:
+        try:
+            from __init__ import load_fen_positions
+            print(f"Loading dataset from {dataset_path}...")
+            fen_dataset = load_fen_positions(dataset_path, balanced_only=balanced_only)
+            print(f"Loaded {len(fen_dataset)} FENs from dataset.")
+            if not fen_dataset:
+                print("No valid positions loaded, falling back to standard chess positions")
+                use_dataset = False
+        except Exception as e:
+            print(f"Error loading dataset: {e}")
+            print("Falling back to standard chess positions")
+            use_dataset = False
     
     for method in methods:
         print(f"\n{'='*80}")
@@ -32,12 +55,16 @@ def run_all_methods(num_episodes=300, output_base_dir="model_results"):
                 method=method, 
                 num_episodes=actual_episodes,
                 n_simulations=40,
-                c_puct=1.4
+                c_puct=1.4,
+                use_dataset=use_dataset,
+                csv_file=dataset_path
             )
         else:
             metrics, agent, env, fig = main_with_metrics(
                 method=method, 
-                num_episodes=actual_episodes
+                num_episodes=actual_episodes,
+                use_dataset=use_dataset,
+                csv_file=dataset_path
             )
         
         all_metrics[method.upper()] = metrics
@@ -47,6 +74,12 @@ def run_all_methods(num_episodes=300, output_base_dir="model_results"):
         
         with open(os.path.join(method_dir, f"{method}_metrics.pkl"), 'wb') as f:
             pickle.dump(metrics, f)
+        
+        if use_dataset:
+            with open(os.path.join(method_dir, 'dataset_info.txt'), 'w') as f:
+                f.write(f"Dataset: {dataset_path}\n")
+                f.write(f"Number of positions: {len(fen_dataset) if fen_dataset else 0}\n")
+                f.write(f"Balanced only: {balanced_only}\n")
         
         plt.figure(figsize=(12, 6))
         rewards = metrics['rewards_history']
@@ -89,6 +122,12 @@ def run_all_methods(num_episodes=300, output_base_dir="model_results"):
     with open(os.path.join(comparison_dir, 'all_metrics.pkl'), 'wb') as f:
         pickle.dump(all_metrics, f)
     
+    if use_dataset:
+        with open(os.path.join(comparison_dir, 'dataset_info.txt'), 'w') as f:
+            f.write(f"Dataset: {dataset_path}\n")
+            f.write(f"Number of positions: {len(fen_dataset) if fen_dataset else 0}\n")
+            f.write(f"Balanced only: {balanced_only}\n")
+    
     print(f"\nComparison results saved in '{comparison_dir}'")
 
     baseline_fig = visualize_baseline_results(all_metrics, output_dir=comparison_dir)
@@ -99,7 +138,24 @@ def run_all_methods(num_episodes=300, output_base_dir="model_results"):
     return all_metrics, comp_fig
 
 if __name__ == "__main__":
-    all_metrics, comp_fig = run_all_methods(num_episodes=1000)
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Run reinforcement learning methods for chess')
+    parser.add_argument('--episodes', type=int, default=1000, help='Number of episodes to run')
+    parser.add_argument('--output', type=str, default="model_results", help='Output directory')
+    parser.add_argument('--dataset', type=str, default=None, help='Path to CSV file with FEN positions')
+    parser.add_argument('--balanced', action='store_true', help='Only use balanced positions from dataset')
+    
+    args = parser.parse_args()
+    
+    use_dataset = args.dataset is not None
+    all_metrics, comp_fig = run_all_methods(
+        num_episodes=args.episodes,
+        output_base_dir=args.output,
+        use_dataset=use_dataset,
+        dataset_path=args.dataset,
+        balanced_only=args.balanced
+    )
     
     if comp_fig:
         plt.figure(comp_fig.number)

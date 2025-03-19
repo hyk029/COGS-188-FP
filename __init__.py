@@ -7,26 +7,76 @@ import csv
 import time
 from gym import spaces
 
-def load_fen_positions(csv_file, balanced_only=True):
+def load_fen_positions(csv_file, balanced_only=True, max_positions=5000):
+    """
+    Load FEN positions from a CSV file
+    
+    Args:
+        csv_file: Path to CSV file containing FEN strings
+        balanced_only: If True, only load positions where material is roughly balanced
+        max_positions: Maximum number of positions to load
+        
+    Returns:
+        List of FEN strings
+    """
     fen_list = []
-    with open(csv_file, 'r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)  
-        for row in reader:
-            fen = row['fen']
-            board = chess.Board(fen)
-            if not balanced_only or is_material_balanced(board):
-                fen_list.append(fen)
+    try:
+        with open(csv_file, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)  
+            for row in reader:
+                if 'fen' not in row:
+                    fen_key = next((key for key in row.keys() if 'fen' in key.lower()), None)
+                    if not fen_key:
+                        print(f"Warning: No FEN column found in the CSV. Available columns: {list(row.keys())}")
+                        break
+                else:
+                    fen_key = 'fen'
+                
+                fen = row[fen_key]
+                
+                try:
+                    board = chess.Board(fen)
+                    if not balanced_only or is_material_balanced(board):
+                        fen_list.append(fen)
+                except Exception as e:
+                    continue
+                
+                if len(fen_list) >= max_positions:
+                    break
+        
+        print(f"Successfully loaded {len(fen_list)} FEN positions from {csv_file}")
+    except Exception as e:
+        print(f"Error loading dataset: {e}")
+        
     return fen_list
 
-def is_material_balanced(board):
-    piece_values = {chess.PAWN:1, chess.KNIGHT:3, chess.BISHOP:3, chess.ROOK:5, chess.QUEEN:9}
-    balance = 0
+def is_material_balanced(board, threshold=2):
+    """
+    Check if the position has roughly balanced material
+    
+    Args:
+        board: chess.Board object
+        threshold: Maximum material imbalance allowed
+        
+    Returns:
+        True if material is balanced within threshold
+    """
+    piece_values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, 
+                    chess.ROOK: 5, chess.QUEEN: 9}
+    
+    white_material = 0
+    black_material = 0
+    
     for sq in chess.SQUARES:
         piece = board.piece_at(sq)
         if piece:
-            sign = 1 if piece.color == chess.WHITE else -1
-            balance += sign * piece_values.get(piece.piece_type, 0)
-    return abs(balance) <= 1  
+            value = piece_values.get(piece.piece_type, 0)
+            if piece.color == chess.WHITE:
+                white_material += value
+            else:
+                black_material += value
+    
+    return abs(white_material - black_material) <= threshold
 
 class ChessEnv(gym.Env):
     def __init__(self, max_steps=100):

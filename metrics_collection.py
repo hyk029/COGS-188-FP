@@ -222,35 +222,75 @@ def main_with_metrics(method="q_learning", use_dataset=False, csv_file=None,
                     num_episodes=500, episode_step_limit=50, 
                     alpha=0.1, gamma=0.99, epsilon_decay=0.995,
                     n_simulations=100, c_puct=1.4):
+    """
+    Run a method and collect metrics
+    
+    Args:
+        method: Algorithm to use ('q_learning', 'sarsa', or 'mcts')
+        use_dataset: Whether to use a FEN dataset
+        csv_file: Path to CSV file containing FEN positions
+        num_episodes: Number of episodes to run
+        episode_step_limit: Maximum steps per episode
+        alpha: Learning rate
+        gamma: Discount factor
+        epsilon_decay: Exploration rate decay
+        n_simulations: Number of MCTS simulations
+        c_puct: MCTS exploration constant
+        
+    Returns:
+        metrics: Dictionary of performance metrics
+        agent: Trained agent
+        env: Environment used
+        fig: Performance visualization figure
+    """
     
     if method not in ["q_learning", "sarsa", "mcts"]:
         print("Usage: python final_chess.py [q_learning|sarsa|mcts]")
-        return None
+        return None, None, None, None
     
     if use_dataset and csv_file:
         try:
             import csv
+            from __init__ import load_fen_positions, FENDatasetChessEnv
             print(f"Loading dataset from {csv_file}...")
             fen_dataset = load_fen_positions(csv_file, balanced_only=True)
             print(f"Loaded {len(fen_dataset)} FENs from dataset.")
-            env = FENDatasetChessEnv(fen_dataset, max_steps=episode_step_limit)
+            
+            if not fen_dataset:
+                print("No valid positions loaded, falling back to standard chess positions")
+                from __init__ import ChessEnv
+                env = ChessEnv(max_steps=episode_step_limit)
+            else:
+                env = FENDatasetChessEnv(fen_dataset, max_steps=episode_step_limit)
+                print(f"Using dataset environment with {len(fen_dataset)} positions")
         except Exception as e:
             print(f"Error loading dataset: {e}")
+            from __init__ import ChessEnv
             env = ChessEnv(max_steps=episode_step_limit)
     else:
+        from __init__ import ChessEnv
         env = ChessEnv(max_steps=episode_step_limit)
     
     if method == "q_learning":
+        from __init__ import QLearningAgent
         agent = QLearningAgent(alpha=alpha, gamma=gamma, epsilon=1.0, epsilon_min=0.01, epsilon_decay=epsilon_decay)
         metrics = run_episodes_with_metrics(env, agent, num_episodes=num_episodes, method="q_learning", episode_step_limit=episode_step_limit)
     
     elif method == "sarsa":
+        from __init__ import SARSAAgent
         agent = SARSAAgent(alpha=alpha, gamma=gamma, epsilon=1.0, epsilon_min=0.01, epsilon_decay=epsilon_decay)
         metrics = run_episodes_with_metrics(env, agent, num_episodes=num_episodes, method="sarsa", episode_step_limit=episode_step_limit)
 
     elif method == "mcts":
+        from __init__ import MCTSAgent
         agent = MCTSAgent(n_simulations=n_simulations, c_puct=c_puct)
         metrics = run_episodes_with_metrics(env, agent, num_episodes=num_episodes, method="mcts", episode_step_limit=episode_step_limit)
+    
+    if use_dataset and csv_file:
+        metrics['dataset_info'] = {
+            'csv_file': csv_file,
+            'positions_count': len(fen_dataset) if 'fen_dataset' in locals() and fen_dataset else 0
+        }
     
     fig = analyze_performance(metrics, method, debug_dir=None)
 
