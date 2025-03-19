@@ -2,14 +2,10 @@ import gym
 import numpy as np
 import random
 import chess
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import math
 import sys
 import csv
+import time
 from gym import spaces
-from collections import deque
 
 def load_fen_positions(csv_file, balanced_only=True):
     fen_list = []
@@ -254,114 +250,235 @@ class SARSAAgent:
         return move.from_square * 64 + move.to_square
 
 class MCTSAgent:
-    def __init__(self, n_simulations=100, c_puct=1.4):
+    """
+    Optimized Monte Carlo Tree Search implementation with memory management
+    """
+    def __init__(self, n_simulations=50, c_puct=1.4, max_depth=15, timeout=2.0, max_tree_size=5000):
         self.n_simulations = n_simulations
         self.c_puct = c_puct
-        self.tree = {}  
-
+        self.max_depth = max_depth
+        self.timeout = timeout
+        self.max_tree_size = max_tree_size
+        self.tree = {}
+        self.piece_values = {
+            chess.PAWN: 1,
+            chess.KNIGHT: 3,
+            chess.BISHOP: 3,
+            chess.ROOK: 5,
+            chess.QUEEN: 9,
+            chess.KING: 0
+        }
+        
     def choose_action(self, env):
-        state_fen = env.board.fen()
+        """
+        Select the best action according to MCTS simulations
+        """
+        start_time = time.time()
+        board = env.board.copy()
+        state_key = self._board_to_key(board)
         
-        for _ in range(self.n_simulations):
-            self._simulate(env.board.copy())
+        if len(self.tree) > self.max_tree_size:
+            self._prune_tree()
         
-        root_node = self.tree.get(state_fen, None)
-        if root_node is None or not root_node["children"]:
-            legal_moves = list(env.board.legal_moves)
-            if not legal_moves:
-                return env.action_space.sample()
+        legal_moves = list(board.legal_moves)
+        if not legal_moves:
+            return 0
+        
+        simulation_count = 0
+        while simulation_count < self.n_simulations:
+            if time.time() - start_time > self.timeout:
+                break
+            
+            self._simulate(board.copy(), state_key, 0)
+            simulation_count += 1
+            
+            if simulation_count % 5 == 0 and time.time() - start_time > self.timeout * 0.8:
+                break
+        
+        if state_key not in self.tree:
             return self._encode_action(random.choice(legal_moves))
         
-        best_move, best_stats = None, None
-        for move, child_fen in root_node["children"].items():
-            child_node = self.tree.get(child_fen, None)
-            if child_node is None:
+        node = self.tree[state_key]
+        if not node[2]:
+            return self._encode_action(random.choice(legal_moves))
+        
+        best_move, best_visits = None, -1
+        for move_str, child_key in node[2].items():
+            move = chess.Move.from_uci(move_str)
+            if move not in board.legal_moves:
                 continue
-            if best_stats is None or child_node["N"] > best_stats["N"]:
-                best_move = move
-                best_stats = child_node
+                
+            if child_key in self.tree:
+                child_visits = self.tree[child_key][0]
+                if child_visits > best_visits:
+                    best_visits = child_visits
+                    best_move = move
         
         if best_move is None:
-            legal_moves = list(env.board.legal_moves)
-            if not legal_moves:
-                return env.action_space.sample()
-            return self._encode_action(random.choice(legal_moves))
-        
+            best_move = random.choice(legal_moves)
+            
         return self._encode_action(best_move)
-
-    def _simulate(self, board):
-        visited = []
-        fen_history = []
+    
+    def _simulate(self, board, state_key=None, depth=0):
+        """
+        Run a single MCTS simulation
+        """
+        if state_key is None:
+            state_key = self._board_to_key(board)
+            
+        if depth >= self.max_depth:
+            return self._evaluate_position(board)
+            
+        if board.is_game_over():
+            return self._get_terminal_reward(board)
+            
+        if state_key not in self.tree:
+            self.tree[state_key] = (0, 0.0, {})
+            
+            if depth > 0:
+                return self._evaluate_position(board)
         
-        while True:
-            fen = board.fen()
-            node = self.tree.setdefault(fen, {"N": 0, "W": 0.0, "children": {}})
-            visited.append(fen)
-
-            if board.is_game_over():
-                break
-
+        node = self.tree[state_key]
+        
+        if not node[2]:
             legal_moves = list(board.legal_moves)
             if not legal_moves:
-                break
+                return self._evaluate_position(board)
+                
+            for move in legal_moves:
+                node[2][move.uci()] = None
+                
+            selected_move = random.choice(legal_moves)
+            board.push(selected_move)
+            child_key = self._board_to_key(board)
+            node[2][selected_move.uci()] = child_key
+            
+            value = self._simulate(board, child_key, depth + 1)
+            
+        else:
+            selected_move = self._select_child(board, node)
+            
+            if selected_move is None:
+                return self._evaluate_position(board)
+                
+            move_str = selected_move.uci()
+            child_key = node[2].get(move_str)
+            
+            if child_key is None:
+                board.push(selected_move)
+                child_key = self._board_to_key(board)
+                node[2][move_str] = child_key
+            else:
+                board.push(selected_move)
+                
 
-            if not node["children"]:
-                for move in legal_moves:
-                    board.push(move)
-                    child_fen = board.fen()
-                    node["children"][move] = child_fen
-                    board.pop()
-
-            move = self._select_child(node, board)
-            board.push(move)
-            fen_history.append((fen, move))
-
-        reward = self._get_terminal_reward(board)
+            value = self._simulate(board, child_key, depth + 1)
         
-        for fen in visited:
-            node = self.tree[fen]
-            node["N"] += 1
-            node["W"] += reward
-        return
-
-    def _select_child(self, node, board):
-        best_score = -float('inf')
+        visits, total_value, children = node
+        self.tree[state_key] = (visits + 1, total_value + value, children)
+        
+        return value
+    
+    def _select_child(self, board, node):
+        """
+        Select child with highest UCT value
+        """
+        visits, _, children = node
+        best_score = float('-inf')
         best_move = None
         
-        N_parent = max(node["N"], 1e-8)
-        for move, child_fen in node["children"].items():
-            child_node = self.tree.setdefault(child_fen, {"N": 0, "W": 0.0, "children": {}})
+        legal_moves = list(board.legal_moves)
+        if not legal_moves:
+            return None
             
-            if child_node["N"] == 0:
-                exploration = float('inf')
-                q_value = 0.0
-            else:
-                q_value = child_node["W"] / child_node["N"]
-                exploration_term = np.log(N_parent) / (child_node["N"] + 1e-8)
-                exploration_term = max(exploration_term, 0)
-                exploration = self.c_puct * np.sqrt(exploration_term)
+        for move in legal_moves:
+            move_str = move.uci()
+            if move_str not in children:
+                continue
                 
-            ucb = q_value + exploration
-            if ucb > best_score:
-                best_score = ucb
+            child_key = children[move_str]
+            
+            if child_key is None or child_key not in self.tree:
+                return move
+                
+            child_visits, child_value, _ = self.tree[child_key]
+            
+            if child_visits == 0:
+                return move
+                
+            exploration = 0.0
+            if visits > 0 and child_visits > 0:
+                try:
+                    exploration = self.c_puct * np.sqrt(np.log(visits) / child_visits)
+                except (ValueError, RuntimeWarning):
+                    exploration = self.c_puct
+            
+            exploitation = child_value / max(child_visits, 1)
+            uct_value = exploitation + exploration
+            
+            if uct_value > best_score:
+                best_score = uct_value
                 best_move = move
         
-        if best_move is None:
-            legal_moves = list(board.legal_moves)
-            if legal_moves:
-                best_move = random.choice(legal_moves)
-            else:
-                raise ValueError("No legal moves available in _select_child")
-                
+        if best_move is None and legal_moves:
+            best_move = random.choice(legal_moves)
+            
         return best_move
-
+    
     def _get_terminal_reward(self, board):
+        """
+        Evaluate terminal game state
+        """
         if board.is_checkmate():
             return -1.0
         return 0.0
-
+    
+    def _evaluate_position(self, board):
+        """
+        Simple material-based evaluation
+        """
+        if board.is_game_over():
+            return self._get_terminal_reward(board)
+            
+        score = 0
+        for square in chess.SQUARES:
+            piece = board.piece_at(square)
+            if piece:
+                value = self.piece_values.get(piece.piece_type, 0)
+                if piece.color == chess.WHITE:
+                    score += value
+                else:
+                    score -= value
+        
+        normalized = np.tanh(score / 15.0)
+        return -normalized
+    
+    def _board_to_key(self, board):
+        """
+        Convert board to a hashable key
+        """
+        return board.fen().split(' ')[0]
+    
     def _encode_action(self, move):
+        """
+        Convert chess move to action index
+        """
         return move.from_square * 64 + move.to_square
+    
+    def _prune_tree(self):
+        """
+        Prune search tree to reduce memory usage
+        """
+        if not self.tree:
+            return
+            
+        sorted_nodes = sorted(self.tree.items(), key=lambda x: x[1][0], reverse=True)
+        
+        keep_count = min(50, len(sorted_nodes))
+        nodes_to_keep = {k for k, _ in sorted_nodes[:keep_count]}
+        
+        new_tree = {k: v for k, v in self.tree.items() if k in nodes_to_keep}
+        self.tree = new_tree
 
 def run_episodes(env, agent, num_episodes=1000, method="q_learning"):
     rewards_history = []

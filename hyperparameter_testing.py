@@ -193,7 +193,7 @@ def run_final_comparison_with_best_params(best_params, num_episodes=500, output_
         n_simulations = int(m_params.get('n_simulations', 100))
         c_puct = m_params.get('c_puct', 1.4)
         
-        mcts_episodes = min(num_episodes // 10, 50)
+        mcts_episodes = min(num_episodes // 10, 20)
         metrics, agent, env, fig = main_with_metrics(
             method="mcts",
             num_episodes=mcts_episodes,

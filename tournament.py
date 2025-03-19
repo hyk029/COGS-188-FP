@@ -1,9 +1,8 @@
 import chess
-import time
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
-from __init__ import ChessEnv, FENDatasetChessEnv, QLearningAgent, SARSAAgent, MCTSAgent
+from __init__ import ChessEnv, QLearningAgent, SARSAAgent, MCTSAgent
 from heuristic_agents import RandomAgent, MaterialAgent, PositionalAgent
 
 def decode_action(action_idx):

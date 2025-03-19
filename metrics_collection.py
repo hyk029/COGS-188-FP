@@ -2,10 +2,12 @@ import os
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-from collections import defaultdict
 from __init__ import ChessEnv, FENDatasetChessEnv, QLearningAgent, SARSAAgent, MCTSAgent, load_fen_positions
 
 def run_episodes_with_metrics(env, agent, num_episodes=1000, method="q_learning", episode_step_limit=100):
+    """
+    Run episodes and collect performance metrics
+    """
     metrics = {
         'rewards_history': [],
         'episode_lengths': [],
@@ -36,67 +38,78 @@ def run_episodes_with_metrics(env, agent, num_episodes=1000, method="q_learning"
         while not done and steps < episode_step_limit:
             steps += 1
             
-            if method == "q_learning":
-                action = agent.choose_action(obs, env)
-                move = env._decode_action(action)
-                if move not in env.board.legal_moves:
-                    illegal_moves += 1
-                
-                next_obs, reward, done, _ = env.step(action)
-                agent.update(obs, action, reward, next_obs, done, env)
-                obs = next_obs
-                total_reward += reward
-                
-            elif method == "sarsa":
-                next_obs, reward, done, _ = env.step(action)
-                
-                move = env._decode_action(action)
-                if move not in env.board.legal_moves:
-                    illegal_moves += 1
+            try:
+                if method == "q_learning":
+                    action = agent.choose_action(obs, env)
+                    move = env._decode_action(action)
+                    if move not in env.board.legal_moves:
+                        illegal_moves += 1
                     
-                if not done:
-                    next_action = agent.choose_action(next_obs, env)
-                else:
-                    next_action = None
-                agent.update(obs, action, reward, next_obs, next_action, done)
-                obs = next_obs
-                action = next_action
-                total_reward += reward
-                
-            elif method == "mcts":
-                action = agent.choose_action(env)
-                
-                move = env._decode_action(action)
-                if move not in env.board.legal_moves:
-                    illegal_moves += 1
+                    next_obs, reward, done, _ = env.step(action)
+                    agent.update(obs, action, reward, next_obs, done, env)
+                    obs = next_obs
+                    total_reward += reward
                     
-                next_obs, reward, done, _ = env.step(action)
-                obs = next_obs
-                total_reward += reward
+                elif method == "sarsa":
+                    next_obs, reward, done, _ = env.step(action)
+                    
+                    move = env._decode_action(action)
+                    if move not in env.board.legal_moves:
+                        illegal_moves += 1
+                        
+                    if not done:
+                        next_action = agent.choose_action(next_obs, env)
+                    else:
+                        next_action = None
+                    agent.update(obs, action, reward, next_obs, next_action, done)
+                    obs = next_obs
+                    action = next_action
+                    total_reward += reward
+                    
+                elif method == "mcts":
+                    action = agent.choose_action(env)
+                    
+                    move = env._decode_action(action)
+                    if move not in env.board.legal_moves:
+                        illegal_moves += 1
+                        
+                    next_obs, reward, done, _ = env.step(action)
+                    obs = next_obs
+                    total_reward += reward
+            except Exception as e:
+                print(f"Error in {method} agent: {e}")
+                done = True
             
         metrics['rewards_history'].append(total_reward)
         metrics['episode_lengths'].append(steps)
         metrics['illegal_move_counts'].append(illegal_moves)
-        metrics['time_per_episode'].append(time.time() - start_time)
+        
+        episode_time = time.time() - start_time
+        metrics['time_per_episode'].append(episode_time)
         
         if env.board.is_checkmate():
             checkmate_count += 1
         metrics['checkmate_counts'].append(checkmate_count)
         
-        if method in ["q_learning", "sarsa"] and hasattr(agent, 'q_table') and agent.q_table:
-            avg_q = sum(agent.q_table.values()) / max(len(agent.q_table), 1)
-            metrics['q_value_evolution'].append(avg_q)
+        if method in ["q_learning", "sarsa"] and hasattr(agent, 'q_table'):
+            if agent.q_table:
+                avg_q = sum(agent.q_table.values()) / max(len(agent.q_table), 1)
+                metrics['q_value_evolution'].append(avg_q)
             metrics['memory_usage'].append(len(agent.q_table))
         
-        if method == "mcts" and hasattr(agent, 'tree'):
+        elif method == "mcts" and hasattr(agent, 'tree'):
             metrics['memory_usage'].append(len(agent.tree))
             
-        if (ep+1) % 50 == 0:
-            print(f"Episode {ep+1}/{num_episodes}, Reward={total_reward:.2f}, Steps={steps}, Time={metrics['time_per_episode'][-1]:.3f}s")
+        if (ep+1) % 10 == 0 or method == "mcts":
+            print(f"Episode {ep+1}/{num_episodes}, Reward={total_reward:.2f}, Steps={steps}, Time={episode_time:.3f}s")
             if method in ["q_learning", "sarsa"]:
                 print(f"  Epsilon: {agent.epsilon:.4f}, Q-table size: {len(agent.q_table)}")
             elif method == "mcts":
                 print(f"  Tree size: {len(agent.tree)}")
+                
+        if episode_time > 60:
+            print(f"Episode {ep+1} took too long ({episode_time:.1f}s). Stopping early.")
+            break
     
     return metrics
 
@@ -108,14 +121,45 @@ def analyze_performance(metrics_dict, method_name):
         metrics_dict: Dictionary containing metrics from run_episodes_with_metrics
         method_name: String name of the method (q_learning, sarsa, mcts)
     """
+    print(f"Analyzing performance for {method_name}:")
+    print(f"  Rewards history length: {len(metrics_dict['rewards_history'])}")
+    print(f"  First few rewards: {metrics_dict['rewards_history'][:5]}")
+
+    if len(metrics_dict['rewards_history']) > 0:
+        print(f"  Last few rewards: {metrics_dict['rewards_history'][-5:]}")
+
+    all_zeros = all(r == 0 for r in metrics_dict['rewards_history'])
+    print(f"  All rewards are zero: {all_zeros}")
+
     fig, axs = plt.subplots(3, 2, figsize=(15, 12))
     fig.suptitle(f'Performance Metrics for {method_name}', fontsize=16)
     
     rewards = metrics_dict['rewards_history']
-    window_size = min(20, len(rewards))
-    smoothed_rewards = np.convolve(rewards, np.ones(window_size)/window_size, mode='valid')
-    axs[0, 0].plot(smoothed_rewards)
-    axs[0, 0].set_title('Rewards (Smoothed)')
+    window_size = min(10, len(rewards))
+
+    if len(rewards) == 0:
+        plt.figure(figsize=(12, 6))
+        plt.title(f'{method_name.upper()} - No rewards data available')
+        plt.xlabel('Episode')
+        plt.ylabel('Reward')
+        return plt.gcf()
+    
+    axs[0, 0].plot(rewards, 'b-o', markersize=3)
+    axs[0, 0].bar(range(len(rewards)), rewards, color='lightblue', alpha=0.5, width=1.0)
+
+    if len(rewards) >= window_size:
+        smoothed_rewards = np.convolve(rewards, np.ones(window_size)/window_size, mode='valid')
+        axs[0, 0].plot(range(window_size-1, len(rewards)), smoothed_rewards, 'r-')
+    
+    if all_zeros:
+        axs[0, 0].axhline(y=0, color='g', linestyle='--', linewidth=2)
+            
+    axs[0, 0].set_ylim(-0.05, 0.05)
+
+    jittered_rewards = [r + np.random.normal(0, 0.005) for r in rewards]
+    axs[0, 0].plot(jittered_rewards, 'y.', alpha=0.5, markersize=2)
+    
+    axs[0, 0].set_title('Rewards (Blue: Raw, Red: Smoothed)')
     axs[0, 0].set_xlabel('Episode')
     axs[0, 0].set_ylabel('Total Reward')
     
@@ -165,6 +209,9 @@ def analyze_performance(metrics_dict, method_name):
         plt.close(fig_extra)
     
     plt.tight_layout()
+    
+    plt.savefig(f"{method_name}_debug.png", dpi=300)
+        
     return fig
 
 def main_with_metrics(method="q_learning", use_dataset=False, csv_file=None, 
@@ -199,8 +246,7 @@ def main_with_metrics(method="q_learning", use_dataset=False, csv_file=None,
 
     elif method == "mcts":
         agent = MCTSAgent(n_simulations=n_simulations, c_puct=c_puct)
-        mcts_episodes = min(num_episodes // 10, 50)
-        metrics = run_episodes_with_metrics(env, agent, num_episodes=mcts_episodes, method="mcts", episode_step_limit=episode_step_limit)
+        metrics = run_episodes_with_metrics(env, agent, num_episodes=num_episodes, method="mcts", episode_step_limit=episode_step_limit)
     
     fig = analyze_performance(metrics, method)
 
@@ -235,9 +281,11 @@ def compare_methods(metrics_dict):
     ax = axs[0, 0]
     for method in methods:
         rewards = metrics_dict[method]['rewards_history']
-        window_size = min(20, len(rewards))
-        smoothed_rewards = np.convolve(rewards, np.ones(window_size)/window_size, mode='valid')
-        ax.plot(smoothed_rewards, label=method)
+        if len(rewards) > 0:
+            window_size = min(20, len(rewards))
+            if window_size > 0:
+                smoothed_rewards = np.convolve(rewards, np.ones(window_size)/window_size, mode='valid')
+                ax.plot(smoothed_rewards, label=method)
     ax.set_title('Rewards (Smoothed)')
     ax.set_xlabel('Episode')
     ax.set_ylabel('Total Reward')
@@ -246,9 +294,11 @@ def compare_methods(metrics_dict):
     ax = axs[0, 1]
     for method in methods:
         episode_lengths = metrics_dict[method]['episode_lengths']
-        window_size = min(20, len(episode_lengths))
-        smoothed_lengths = np.convolve(episode_lengths, np.ones(window_size)/window_size, mode='valid')
-        ax.plot(smoothed_lengths, label=method)
+        if len(episode_lengths) > 0:
+            window_size = min(20, len(episode_lengths))
+            if window_size > 0:
+                smoothed_lengths = np.convolve(episode_lengths, np.ones(window_size)/window_size, mode='valid')
+                ax.plot(smoothed_lengths, label=method)
     ax.set_title('Episode Lengths (Smoothed)')
     ax.set_xlabel('Episode')
     ax.set_ylabel('Steps')
@@ -257,7 +307,8 @@ def compare_methods(metrics_dict):
     ax = axs[1, 0]
     for method in methods:
         times = metrics_dict[method]['time_per_episode']
-        ax.plot(times, label=method)
+        if len(times) > 0:
+            ax.plot(times, label=method)
     ax.set_title('Computation Time per Episode')
     ax.set_xlabel('Episode')
     ax.set_ylabel('Seconds')
@@ -266,9 +317,10 @@ def compare_methods(metrics_dict):
     ax = axs[1, 1]
     for method in methods:
         checkmates = metrics_dict[method]['checkmate_counts']
-        episodes = list(range(1, len(checkmates) + 1))
-        checkmate_rate = [c / e for c, e in zip(checkmates, episodes)]
-        ax.plot(checkmate_rate, label=method)
+        if len(checkmates) > 0:
+            episodes = list(range(1, len(checkmates) + 1))
+            checkmate_rate = [c / e for c, e in zip(checkmates, episodes)]
+            ax.plot(checkmate_rate, label=method)
     ax.set_title('Checkmate Rate')
     ax.set_xlabel('Episode')
     ax.set_ylabel('Rate')
@@ -335,17 +387,7 @@ def visualize_baseline_results(metrics_dict, output_dir=None):
 
 def hyperparameter_experiment(method, param_name, param_values, num_episodes=200, episode_step_limit=50):
     """
-    Run experiments with different hyperparameter values
-    
-    Args:
-        method: Algorithm to test ("q_learning", "sarsa", "mcts")
-        param_name: Name of the parameter to vary
-        param_values: List of values to test for the parameter
-        num_episodes: Number of episodes per experiment
-        episode_step_limit: Maximum steps per episode
-    
-    Returns:
-        Dictionary of metrics for each parameter value
+    Run experiments with different hyperparameter values - streamlined for MCTS
     """
     results = {}
     
@@ -381,15 +423,18 @@ def hyperparameter_experiment(method, param_name, param_values, num_episodes=200
             metrics = run_episodes_with_metrics(env, agent, num_episodes=num_episodes, method="sarsa", episode_step_limit=episode_step_limit)
         
         elif method == "mcts":
+            mcts_episodes = min(num_episodes // 10, 20)
+            
             if param_name == "n_simulations":
-                agent = MCTSAgent(n_simulations=int(value), c_puct=1.4)
+                sim_count = min(int(value), 200)
+                agent = MCTSAgent(n_simulations=sim_count, c_puct=1.4, max_depth=15, timeout=2.0)
+                print(f"Using {sim_count} simulations (capped at 200)")
             elif param_name == "c_puct":
-                agent = MCTSAgent(n_simulations=100, c_puct=value)
+                agent = MCTSAgent(n_simulations=40, c_puct=value, max_depth=15, timeout=2.0)
             else:
                 print(f"Unknown parameter: {param_name}")
                 return None
                 
-            mcts_episodes = min(num_episodes // 5, 40)
             metrics = run_episodes_with_metrics(env, agent, num_episodes=mcts_episodes, method="mcts", episode_step_limit=episode_step_limit)
         
         results[value] = metrics
