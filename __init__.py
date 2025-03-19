@@ -57,10 +57,11 @@ class ChessEnv(gym.Env):
 
     def _get_reward(self, done):
         if not done:
-            return 0.0
+            material_advantage = self._calculate_material_advantage()
+            return material_advantage * 0.01
         if self.board.is_checkmate():
-            return -1.0
-        return 0.0
+            return -10.0
+        return 1.0 
 
     def _get_observation(self):
         obs = np.zeros(64, dtype=np.int8)
@@ -75,6 +76,27 @@ class ChessEnv(gym.Env):
         from_sq = action_idx // 64
         to_sq   = action_idx % 64
         return chess.Move(from_sq, to_sq)
+    
+    def _calculate_material_advantage(self):
+        """
+        Calculate the material advantage for the current player
+        """
+        piece_values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, 
+                        chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0}
+        
+        white_material = 0
+        black_material = 0
+        
+        for square in chess.SQUARES:
+            piece = self.board.piece_at(square)
+            if piece:
+                value = piece_values.get(piece.piece_type, 0)
+                if piece.color == chess.WHITE:
+                    white_material += value
+                else:
+                    black_material += value
+        
+        return white_material - black_material
 
 class FENDatasetChessEnv(gym.Env):
     def __init__(self, fen_list, max_steps=100):

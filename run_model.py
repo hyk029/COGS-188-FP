@@ -4,15 +4,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from metrics_collection import main_with_metrics, compare_methods, visualize_baseline_results
 
-def run_all_methods(num_episodes=300, output_base_dir="model_results", debug_img_dir="debug_images"):
+def run_all_methods(num_episodes=300, output_base_dir="model_results"):
     """
     Run all three reinforcement learning methods and save results in separate folders
-    Streamlined version with better MCTS handling and organized debug images
+    Streamlined version with better MCTS handling
     """
     os.makedirs(output_base_dir, exist_ok=True)
-    
-    debug_img_path = os.path.join(output_base_dir, debug_img_dir)
-    os.makedirs(debug_img_path, exist_ok=True)
     
     methods = ["q_learning", "sarsa", "mcts"]
     all_metrics = {}
@@ -25,9 +22,6 @@ def run_all_methods(num_episodes=300, output_base_dir="model_results", debug_img
         method_dir = os.path.join(output_base_dir, f"{method}_results")
         os.makedirs(method_dir, exist_ok=True)
         
-        method_debug_dir = os.path.join(debug_img_path, method)
-        os.makedirs(method_debug_dir, exist_ok=True)
-        
         actual_episodes = num_episodes
         if method == "mcts":
             actual_episodes = max(1, min(num_episodes // 20, 15))
@@ -38,14 +32,12 @@ def run_all_methods(num_episodes=300, output_base_dir="model_results", debug_img
                 method=method, 
                 num_episodes=actual_episodes,
                 n_simulations=40,
-                c_puct=1.4,
-                debug_dir=method_debug_dir
+                c_puct=1.4
             )
         else:
             metrics, agent, env, fig = main_with_metrics(
                 method=method, 
-                num_episodes=actual_episodes,
-                debug_dir=method_debug_dir
+                num_episodes=actual_episodes
             )
         
         all_metrics[method.upper()] = metrics
@@ -77,7 +69,6 @@ def run_all_methods(num_episodes=300, output_base_dir="model_results", debug_img
         plt.close()
         
         print(f"Results for {method} saved in '{method_dir}'")
-        print(f"Debug images for {method} saved in '{method_debug_dir}'")
     
     comparison_dir = os.path.join(output_base_dir, "comparison")
     os.makedirs(comparison_dir, exist_ok=True)
@@ -108,7 +99,7 @@ def run_all_methods(num_episodes=300, output_base_dir="model_results", debug_img
     return all_metrics, comp_fig
 
 if __name__ == "__main__":
-    all_metrics, comp_fig = run_all_methods(num_episodes=500)
+    all_metrics, comp_fig = run_all_methods(num_episodes=1000)
     
     if comp_fig:
         plt.figure(comp_fig.number)

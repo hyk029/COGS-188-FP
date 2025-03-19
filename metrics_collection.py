@@ -113,7 +113,7 @@ def run_episodes_with_metrics(env, agent, num_episodes=1000, method="q_learning"
     
     return metrics
 
-def analyze_performance(metrics_dict, method_name):
+def analyze_performance(metrics_dict, method_name, debug_dir=None):
     """
     Analyze and plot performance metrics
     
@@ -210,7 +210,11 @@ def analyze_performance(metrics_dict, method_name):
     
     plt.tight_layout()
     
-    plt.savefig(f"{method_name}_debug.png", dpi=300)
+    debug_dir = "debug_results"
+    if not os.path.exists(debug_dir):
+        os.makedirs(debug_dir)
+    
+    plt.savefig(os.path.join(debug_dir, f"{method_name}_debug.png"), dpi=300)
         
     return fig
 
@@ -248,7 +252,7 @@ def main_with_metrics(method="q_learning", use_dataset=False, csv_file=None,
         agent = MCTSAgent(n_simulations=n_simulations, c_puct=c_puct)
         metrics = run_episodes_with_metrics(env, agent, num_episodes=num_episodes, method="mcts", episode_step_limit=episode_step_limit)
     
-    fig = analyze_performance(metrics, method)
+    fig = analyze_performance(metrics, method, debug_dir=None)
 
     if agent is not None:
         print(f"\nEvaluating {method} against baseline agents...")
