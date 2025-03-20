@@ -7,16 +7,6 @@ import argparse
 import time
 
 def parse_pgn_file(pgn_file, max_games=1000):
-    """
-    Extract positions from a PGN file containing chess games
-    
-    Args:
-        pgn_file: Path to PGN file
-        max_games: Maximum number of games to process
-        
-    Returns:
-        List of FEN strings
-    """
     positions = []
     games_processed = 0
     
@@ -49,16 +39,6 @@ def parse_pgn_file(pgn_file, max_games=1000):
     return positions
 
 def generate_random_positions(num_positions=1000, depth_range=(5, 30)):
-    """
-    Generate random positions by playing random legal moves from the initial position
-    
-    Args:
-        num_positions: Number of positions to generate
-        depth_range: Range of moves (min, max) to play before recording the position
-        
-    Returns:
-        List of FEN strings
-    """
     positions = []
     
     for i in range(num_positions):
@@ -83,16 +63,6 @@ def generate_random_positions(num_positions=1000, depth_range=(5, 30)):
     return positions
 
 def is_material_balanced(board, threshold=2):
-    """
-    Check if the position has roughly balanced material
-    
-    Args:
-        board: chess.Board object
-        threshold: Maximum material imbalance allowed
-        
-    Returns:
-        True if material is balanced within threshold
-    """
     piece_values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, 
                     chess.ROOK: 5, chess.QUEEN: 9}
     
@@ -111,14 +81,6 @@ def is_material_balanced(board, threshold=2):
     return abs(white_material - black_material) <= threshold
 
 def save_positions_to_csv(positions, output_file, include_balanced_only=False):
-    """
-    Save FEN positions to a CSV file
-    
-    Args:
-        positions: List of FEN strings
-        output_file: Path to save the CSV file
-        include_balanced_only: Only include positions with balanced material
-    """
     filtered_positions = []
     
     if include_balanced_only:

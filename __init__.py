@@ -8,17 +8,6 @@ import time
 from gym import spaces
 
 def load_fen_positions(csv_file, balanced_only=True, max_positions=5000):
-    """
-    Load FEN positions from a CSV file
-    
-    Args:
-        csv_file: Path to CSV file containing FEN strings
-        balanced_only: If True, only load positions where material is roughly balanced
-        max_positions: Maximum number of positions to load
-        
-    Returns:
-        List of FEN strings
-    """
     fen_list = []
     try:
         with open(csv_file, 'r', newline='', encoding='utf-8') as f:
@@ -51,16 +40,6 @@ def load_fen_positions(csv_file, balanced_only=True, max_positions=5000):
     return fen_list
 
 def is_material_balanced(board, threshold=2):
-    """
-    Check if the position has roughly balanced material
-    
-    Args:
-        board: chess.Board object
-        threshold: Maximum material imbalance allowed
-        
-    Returns:
-        True if material is balanced within threshold
-    """
     piece_values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, 
                     chess.ROOK: 5, chess.QUEEN: 9}
     
@@ -128,9 +107,6 @@ class ChessEnv(gym.Env):
         return chess.Move(from_sq, to_sq)
     
     def _calculate_material_advantage(self):
-        """
-        Calculate the material advantage for the current player
-        """
         piece_values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, 
                         chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0}
         
@@ -322,9 +298,6 @@ class SARSAAgent:
         return move.from_square * 64 + move.to_square
 
 class MCTSAgent:
-    """
-    Optimized Monte Carlo Tree Search implementation with memory management
-    """
     def __init__(self, n_simulations=50, c_puct=1.4, max_depth=15, timeout=2.0, max_tree_size=5000):
         self.n_simulations = n_simulations
         self.c_puct = c_puct
@@ -342,9 +315,6 @@ class MCTSAgent:
         }
         
     def choose_action(self, env):
-        """
-        Select the best action according to MCTS simulations
-        """
         start_time = time.time()
         board = env.board.copy()
         state_key = self._board_to_key(board)
@@ -392,9 +362,6 @@ class MCTSAgent:
         return self._encode_action(best_move)
     
     def _simulate(self, board, state_key=None, depth=0):
-        """
-        Run a single MCTS simulation
-        """
         if state_key is None:
             state_key = self._board_to_key(board)
             
@@ -452,9 +419,6 @@ class MCTSAgent:
         return value
     
     def _select_child(self, board, node):
-        """
-        Select child with highest UCT value
-        """
         visits, _, children = node
         best_score = float('-inf')
         best_move = None
@@ -498,17 +462,11 @@ class MCTSAgent:
         return best_move
     
     def _get_terminal_reward(self, board):
-        """
-        Evaluate terminal game state
-        """
         if board.is_checkmate():
             return -1.0
         return 0.0
     
     def _evaluate_position(self, board):
-        """
-        Simple material-based evaluation
-        """
         if board.is_game_over():
             return self._get_terminal_reward(board)
             
@@ -526,21 +484,12 @@ class MCTSAgent:
         return -normalized
     
     def _board_to_key(self, board):
-        """
-        Convert board to a hashable key
-        """
         return board.fen().split(' ')[0]
     
     def _encode_action(self, move):
-        """
-        Convert chess move to action index
-        """
         return move.from_square * 64 + move.to_square
     
     def _prune_tree(self):
-        """
-        Prune search tree to reduce memory usage
-        """
         if not self.tree:
             return
             

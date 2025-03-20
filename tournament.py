@@ -6,17 +6,11 @@ from __init__ import ChessEnv, QLearningAgent, SARSAAgent, MCTSAgent
 from heuristic_agents import RandomAgent, MaterialAgent, PositionalAgent
 
 def decode_action(action_idx):
-    """
-    Convert action index to chess move.
-    """
     from_sq = action_idx // 64
     to_sq = action_idx % 64
     return chess.Move(from_sq, to_sq)
 
 def tournament(trained_agent, opponent_agent, num_games=100, max_steps=100, agent_plays_white=True):
-    """
-    Run a tournament between two agents.
-    """
     wins = 0
     losses = 0
     draws = 0
@@ -119,9 +113,6 @@ def tournament(trained_agent, opponent_agent, num_games=100, max_steps=100, agen
     }
 
 def evaluate_against_baselines(agent, agent_type, num_games=100):
-    """
-    Evaluate a trained agent against multiple baseline heuristic agents.
-    """
     baseline_agents = {
         "Random": RandomAgent(),
         "Material": MaterialAgent(),
@@ -151,9 +142,6 @@ def evaluate_against_baselines(agent, agent_type, num_games=100):
     return results
 
 def plot_baseline_results(results, agent_type):
-    """
-    Plot win rates against baseline agents.
-    """
     baselines = list(results.keys())
     win_rates = [results[baseline]["win_rate"] * 100 for baseline in baselines]
     draw_rates = [results[baseline]["draw_rate"] * 100 for baseline in baselines]

@@ -4,17 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from metrics_collection import hyperparameter_experiment, plot_hyperparameter_results
 
-def run_all_hyperparameter_tests(base_output_dir="hyperparameter_results", 
-                                use_dataset=False, dataset_path=None, balanced_only=True):
-    """
-    Run a comprehensive set of hyperparameter tests for all methods
-    
-    Args:
-        base_output_dir: Directory to save results
-        use_dataset: Whether to use a FEN dataset for training
-        dataset_path: Path to CSV file containing FEN positions
-        balanced_only: Only use positions with balanced material if using dataset
-    """
+def run_all_hyperparameter_tests(base_output_dir="hyperparameter_results", use_dataset=False, dataset_path=None, balanced_only=True):
     os.makedirs(base_output_dir, exist_ok=True)
     
     fen_dataset = None
@@ -132,22 +122,7 @@ def run_all_hyperparameter_tests(base_output_dir="hyperparameter_results",
         
         print(f"Completed experiment for {exp['method']} - {exp['param_name']}")
 
-def hyperparameter_experiment(method, param_name, param_values, num_episodes=200, 
-                            episode_step_limit=50, use_dataset=False, 
-                            dataset_path=None, balanced_only=True):
-    """
-    Run experiments with different hyperparameter values
-    
-    Args:
-        method: Algorithm to use ('q_learning', 'sarsa', or 'mcts')
-        param_name: Name of the parameter to vary
-        param_values: List of values to test
-        num_episodes: Number of episodes to run for each value
-        episode_step_limit: Maximum steps per episode
-        use_dataset: Whether to use a FEN dataset
-        dataset_path: Path to CSV file containing FEN positions
-        balanced_only: Only use positions with balanced material if using dataset
-    """
+def hyperparameter_experiment(method, param_name, param_values, num_episodes=200, episode_step_limit=50, use_dataset=False, dataset_path=None, balanced_only=True):
     results = {}
     
     from __init__ import ChessEnv, FENDatasetChessEnv, load_fen_positions
@@ -221,12 +196,6 @@ def hyperparameter_experiment(method, param_name, param_values, num_episodes=200
     return results
 
 def analyze_best_hyperparameters(base_results_dir="hyperparameter_results"):
-    """
-    Analyze the results of hyperparameter tests to find optimal values
-    
-    Args:
-        base_results_dir: Directory containing hyperparameter test results
-    """
     best_params = {
         'q_learning': {},
         'sarsa': {},
@@ -254,14 +223,6 @@ def analyze_best_hyperparameters(base_results_dir="hyperparameter_results"):
     return best_params
 
 def run_final_comparison_with_best_params(best_params, num_episodes=500, output_dir="final_comparison"):
-    """
-    Run a final comparison of all methods using their best hyperparameters
-    
-    Args:
-        best_params: Dictionary of best parameter values from analyze_best_hyperparameters
-        num_episodes: Number of episodes to run for each method
-        output_dir: Directory to save results
-    """
     from metrics_collection import main_with_metrics, compare_methods
     
     os.makedirs(output_dir, exist_ok=True)
@@ -343,13 +304,6 @@ def run_final_comparison_with_best_params(best_params, num_episodes=500, output_
     return all_metrics
 
 def evaluate_best_models_against_baselines(best_params, output_dir="baseline_evaluation"):
-    """
-    Evaluate the models with best hyperparameters against baseline heuristic agents
-    
-    Args:
-        best_params: Dictionary of best parameter values from analyze_best_hyperparameters
-        output_dir: Directory to save results
-    """
     from tournament import evaluate_against_baselines, plot_baseline_results
     from __init__ import ChessEnv, QLearningAgent, SARSAAgent, MCTSAgent, run_episodes
     

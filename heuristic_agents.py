@@ -2,9 +2,6 @@ import random
 import chess
 
 class RandomAgent:
-    """
-    Simple agent that makes random legal moves.
-    """
     def choose_action(self, board):
         legal_moves = list(board.legal_moves)
         if not legal_moves:
@@ -12,9 +9,6 @@ class RandomAgent:
         return legal_moves[random.randint(0, len(legal_moves)-1)]
 
 class MaterialAgent:
-    """
-    Heuristic agent that prioritizes capturing highest value pieces.
-    """
     def __init__(self):
         self.piece_values = {
             chess.PAWN: 1,
@@ -48,9 +42,6 @@ class MaterialAgent:
         return random.choice(best_moves)
 
 class PositionalAgent:
-    """
-    Agent that balances material with piece positioning.
-    """
     def __init__(self):
         self.piece_values = {
             chess.PAWN: 100,

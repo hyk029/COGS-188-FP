@@ -4,19 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from metrics_collection import main_with_metrics, compare_methods, visualize_baseline_results
 
-def run_all_methods(num_episodes=300, output_base_dir="model_results", 
-                    use_dataset=False, dataset_path=None, balanced_only=True):
-    """
-    Run all three reinforcement learning methods and save results in separate folders
-    Enhanced version with dataset support
-    
-    Args:
-        num_episodes: Number of episodes to run for each method
-        output_base_dir: Directory to save results
-        use_dataset: Whether to use a FEN dataset instead of starting positions
-        dataset_path: Path to CSV file containing FEN positions
-        balanced_only: Only use positions with balanced material if using dataset
-    """
+def run_all_methods(num_episodes=300, output_base_dir="model_results", use_dataset=False, dataset_path=None, balanced_only=True):
     os.makedirs(output_base_dir, exist_ok=True)
     
     methods = ["q_learning", "sarsa", "mcts"]

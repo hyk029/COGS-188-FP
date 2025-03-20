@@ -5,9 +5,6 @@ import matplotlib.pyplot as plt
 from __init__ import ChessEnv, FENDatasetChessEnv, QLearningAgent, SARSAAgent, MCTSAgent, load_fen_positions
 
 def run_episodes_with_metrics(env, agent, num_episodes=1000, method="q_learning", episode_step_limit=100):
-    """
-    Run episodes and collect performance metrics
-    """
     metrics = {
         'rewards_history': [],
         'episode_lengths': [],
@@ -114,13 +111,6 @@ def run_episodes_with_metrics(env, agent, num_episodes=1000, method="q_learning"
     return metrics
 
 def analyze_performance(metrics_dict, method_name, debug_dir=None):
-    """
-    Analyze and plot performance metrics
-    
-    Args:
-        metrics_dict: Dictionary containing metrics from run_episodes_with_metrics
-        method_name: String name of the method (q_learning, sarsa, mcts)
-    """
     print(f"Analyzing performance for {method_name}:")
     print(f"  Rewards history length: {len(metrics_dict['rewards_history'])}")
     print(f"  First few rewards: {metrics_dict['rewards_history'][:5]}")
@@ -218,32 +208,7 @@ def analyze_performance(metrics_dict, method_name, debug_dir=None):
         
     return fig
 
-def main_with_metrics(method="q_learning", use_dataset=False, csv_file=None, 
-                    num_episodes=500, episode_step_limit=50, 
-                    alpha=0.1, gamma=0.99, epsilon_decay=0.995,
-                    n_simulations=100, c_puct=1.4):
-    """
-    Run a method and collect metrics
-    
-    Args:
-        method: Algorithm to use ('q_learning', 'sarsa', or 'mcts')
-        use_dataset: Whether to use a FEN dataset
-        csv_file: Path to CSV file containing FEN positions
-        num_episodes: Number of episodes to run
-        episode_step_limit: Maximum steps per episode
-        alpha: Learning rate
-        gamma: Discount factor
-        epsilon_decay: Exploration rate decay
-        n_simulations: Number of MCTS simulations
-        c_puct: MCTS exploration constant
-        
-    Returns:
-        metrics: Dictionary of performance metrics
-        agent: Trained agent
-        env: Environment used
-        fig: Performance visualization figure
-    """
-    
+def main_with_metrics(method="q_learning", use_dataset=False, csv_file=None, num_episodes=500, episode_step_limit=50, alpha=0.1, gamma=0.99, epsilon_decay=0.995, n_simulations=100, c_puct=1.4):
     if method not in ["q_learning", "sarsa", "mcts"]:
         print("Usage: python final_chess.py [q_learning|sarsa|mcts]")
         return None, None, None, None
@@ -311,12 +276,6 @@ def main_with_metrics(method="q_learning", use_dataset=False, csv_file=None,
     return metrics, agent, env, fig
 
 def compare_methods(metrics_dict):
-    """
-    Compare metrics from different methods side by side
-    
-    Args:
-        metrics_dict: Dictionary with method names as keys and metrics dictionaries as values
-    """
     methods = list(metrics_dict.keys())
     
     fig, axs = plt.subplots(2, 2, figsize=(15, 12))
@@ -375,13 +334,6 @@ def compare_methods(metrics_dict):
     return fig
 
 def visualize_baseline_results(metrics_dict, output_dir=None):
-    """
-    Create visualizations of performance against baseline agents
-    
-    Args:
-        metrics_dict: Dictionary with method names as keys and metrics as values
-        output_dir: Directory to save visualizations
-    """
     methods = []
     baseline_names = []
     all_results = {}
@@ -430,9 +382,6 @@ def visualize_baseline_results(metrics_dict, output_dir=None):
     return fig
 
 def hyperparameter_experiment(method, param_name, param_values, num_episodes=200, episode_step_limit=50):
-    """
-    Run experiments with different hyperparameter values - streamlined for MCTS
-    """
     results = {}
     
     for value in param_values:
@@ -486,14 +435,6 @@ def hyperparameter_experiment(method, param_name, param_values, num_episodes=200
     return results
 
 def plot_hyperparameter_results(results, method, param_name):
-    """
-    Visualize results from hyperparameter experiments
-    
-    Args:
-        results: Dictionary with parameter values as keys and metrics as values
-        method: Algorithm name
-        param_name: Name of the parameter that was varied
-    """
     param_values = sorted(results.keys())
     
     fig, axs = plt.subplots(2, 2, figsize=(15, 12))
